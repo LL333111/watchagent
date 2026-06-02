@@ -1,0 +1,21 @@
+---
+description: WatchAgent event payload and severity conventions
+globs:
+  - app/event_detection.py
+  - app/models.py
+  - app/schemas.py
+  - README.md
+alwaysApply: true
+---
+
+# Event Record Rules (WatchAgent)
+
+- Every event message must read like an operator-facing incident sentence, not a debug string.
+- Every event reason must explain the monitoring logic in plain English: why this change matters and why it is not just noise.
+- `severity` must reflect operational urgency:
+  - `moderate` for meaningful but non-hazardous changes
+  - `high` for conditions that are plausibly disruptive or safety-relevant
+  - `critical` only when the new state is immediately hazardous or unusually extreme
+- `metric`, `current_value`, `previous_value`, and `threshold` must still make sense together; do not fill them with placeholder values just to satisfy schema shape.
+- If an event represents a crossing or regime shift, the message should include both the prior state and the new state when possible.
+- README examples for stored events must stay in sync with the actual event schema and event type names.

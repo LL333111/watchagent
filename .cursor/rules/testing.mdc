@@ -1,0 +1,15 @@
+---
+description: WatchAgent test-suite requirements
+globs:
+  - tests/**/*.py
+alwaysApply: true
+---
+
+# Testing Rules (WatchAgent)
+
+- Tests must never call the real Open-Meteo API; weather-client calls are mocked/stubbed.
+- Event detection tests must include both triggering and non-triggering examples for each signal to control false positives.
+- API tests must assert response structure and ordering semantics (for example most-recent-first), not only HTTP status codes.
+- Use isolated temporary SQLite databases for tests that touch persistence logic.
+- Poller tests should mock the weather client so poller behavior is tested independently of network conditions.
+- When a Cursor skill is a graded deliverable, add at least one focused test for its core behavior rather than treating it as untested tooling.

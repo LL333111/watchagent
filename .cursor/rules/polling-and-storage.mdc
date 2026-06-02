@@ -1,0 +1,19 @@
+---
+description: WatchAgent polling loop and persistence invariants
+globs:
+  - app/poller.py
+  - app/repository.py
+  - app/models.py
+  - app/weather_client.py
+alwaysApply: true
+---
+
+# Polling and Storage Rules (WatchAgent)
+
+- When handling weather fetch failures in the poller, log the **city name** and the **exception detail** in the same log entry so operators can identify the failing upstream call quickly.
+- A failure for one city (Ottawa, Toronto, or Vancouver) must **not** stop polling the remaining cities in the same cycle.
+- Normalize upstream timestamps to UTC before persistence so cross-city ordering and analysis stay valid.
+- `readings` must remain naturally deduplicated by `city + timestamp` (see unique constraint and repository insertion behavior).
+- `events` must remain naturally deduplicated by `city + timestamp + event_type`.
+- Run event detection only when `insert_reading_if_new` reports `inserted=True`; duplicate readings should short-circuit detection for idempotency.
+- Treat duplicate read/event inserts as expected idempotent outcomes (`inserted=False`), not fatal errors.

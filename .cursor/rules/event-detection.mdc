@@ -1,0 +1,28 @@
+---
+description: WatchAgent event-detection design constraints
+globs:
+  - app/event_detection.py
+  - app/poller.py
+alwaysApply: true
+---
+
+# Event Detection Rules (WatchAgent)
+
+- Keep event-detection functions pure: same inputs (`city`, `current_reading`, `previous_reading`) must produce the same outputs.
+- Event detection logic must not access the database, network, filesystem, or environment variables.
+- Default to transition-based alerts. A single absolute threshold is not enough unless the threshold itself represents a posture change (for example crossing freezing).
+- Do not emit bootstrap alerts from the very first reading for a city; the default is to wait for a meaningful transition.
+- Every emitted event payload must include:
+  - `city`
+  - `timestamp`
+  - `event_type`
+  - `severity`
+  - `message`
+  - `reason`
+  - `metric`
+  - `current_value` (when applicable)
+  - `previous_value` (when applicable)
+  - `threshold` (when applicable)
+- Prefer regime shifts, crossings, and escalations over repeated hourly reminders of the same condition.
+- `reason` text must explain why the event is notable in operator terms, not only restate the metric name.
+- If an alert would likely fire every hour under stable bad weather, add a transition condition or suppress it.
