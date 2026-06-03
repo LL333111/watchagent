@@ -227,6 +227,18 @@ def _event_counts_by_city(conn: sqlite3.Connection) -> dict[str, int]:
     return {str(row["city"]): int(row["count"]) for row in rows}
 
 
+def _reading_counts_by_city(conn: sqlite3.Connection) -> dict[str, int]:
+    rows = conn.execute(
+        """
+        SELECT city, COUNT(*) AS count
+        FROM readings
+        GROUP BY city
+        ORDER BY city ASC
+        """
+    ).fetchall()
+    return {str(row["city"]): int(row["count"]) for row in rows}
+
+
 def _event_type_counts(
     conn: sqlite3.Connection,
     *,
@@ -413,12 +425,31 @@ def _answer_event_pressure(
 ) -> dict[str, Any]:
     counts = _event_counts_by_city(conn)
     if not counts:
-        return _empty_dataset_response(
+        reading_counts = _reading_counts_by_city(conn)
+        if not reading_counts:
+            return _empty_dataset_response(
+                database_path=database_path,
+                question=question,
+                intent="event_pressure",
+                city=None,
+                limit=50,
+            )
+        return _base_response(
             database_path=database_path,
             question=question,
             intent="event_pressure",
             city=None,
             limit=50,
+            answer=(
+                "Stored readings exist, but no notable events have been recorded yet. "
+                "That usually means the recent window stayed inside the current "
+                "signal thresholds."
+            ),
+            evidence={
+                "event_counts_by_city": {},
+                "reading_counts_by_city": reading_counts,
+                "latest_by_city": _latest_readings_by_city(conn),
+            },
         )
 
     ranked = sorted(counts.items(), key=lambda item: item[1], reverse=True)
@@ -553,7 +584,7 @@ def _empty_dataset_response(
         "intent": intent,
         "city": city,
         "limit": limit,
-        "answer": "No stored readings are available for the requested scope yet.",
+        "answer": "No stored data is available for the requested scope yet.",
         "evidence": {},
     }
 

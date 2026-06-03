@@ -6,7 +6,7 @@ from sqlalchemy.orm import sessionmaker
 
 from app import repository
 from app.data_analysis import analyze_weather_question
-from app.models import Base
+from app.models import Base, Event
 from app.schemas import EventCreate, ReadingCreate
 
 
@@ -220,3 +220,29 @@ def test_analysis_skill_understands_warmer_wording(tmp_path: Path) -> None:
     assert result["intent"] == "city_trend"
     assert result["city"] == "Toronto"
     assert result["evidence"]["delta"] > 0
+
+
+def test_event_pressure_handles_readings_without_events(tmp_path: Path) -> None:
+    database_url = _seed_database(tmp_path / "analysis.db")
+    engine = create_engine(
+        database_url,
+        connect_args={"check_same_thread": False},
+    )
+    session_local = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+
+    with session_local() as session:
+        session.query(Event).delete()
+        session.commit()
+
+    result = analyze_weather_question(
+        database_url,
+        "Which city has generated the most events?",
+    )
+
+    engine.dispose()
+
+    assert result["ok"] is True
+    assert result["intent"] == "event_pressure"
+    assert "no notable events" in result["answer"].lower()
+    assert result["evidence"]["event_counts_by_city"] == {}
+    assert result["evidence"]["reading_counts_by_city"]["Ottawa"] >= 1

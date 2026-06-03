@@ -11,7 +11,14 @@ from __future__ import annotations
 import argparse
 import json
 import sqlite3
+import sys
+from pathlib import Path
 from typing import Any
+
+# Allow direct execution from the repository root as documented in the README.
+REPO_ROOT = Path(__file__).resolve().parents[2]
+if str(REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(REPO_ROOT))
 
 from app.data_analysis import sqlite_path_from_database_url
 from app.event_detection import detect_city_events
@@ -143,6 +150,12 @@ def main() -> None:
             "total_events_fired": total_events,
             "replay": replay,
         }
+        if total_events == 0:
+            output["summary"] = (
+                "No replayed events fired in this window. Conditions may have "
+                "been stable, or the current thresholds may be intentionally "
+                "conservative for this slice of data."
+            )
         print(json.dumps(output, indent=2, sort_keys=True, default=str))
     finally:
         conn.close()

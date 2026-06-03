@@ -21,7 +21,7 @@ def list_readings(
     city: str | None = None,
     limit: int = 50,
 ) -> list[Reading]:
-    stmt = select(Reading).order_by(Reading.timestamp.desc()).limit(limit)
+    stmt = select(Reading).order_by(Reading.timestamp.desc(), Reading.id.desc()).limit(limit)
     if city is not None:
         stmt = stmt.where(Reading.city == city)
     return list(db.scalars(stmt).all())
@@ -32,7 +32,7 @@ def list_events(
     city: str | None = None,
     limit: int = 50,
 ) -> list[Event]:
-    stmt = select(Event).order_by(Event.timestamp.desc()).limit(limit)
+    stmt = select(Event).order_by(Event.timestamp.desc(), Event.id.desc()).limit(limit)
     if city is not None:
         stmt = stmt.where(Event.city == city)
     return list(db.scalars(stmt).all())
@@ -42,7 +42,7 @@ def get_latest_reading(db: Session, city: str) -> Reading | None:
     stmt = (
         select(Reading)
         .where(Reading.city == city)
-        .order_by(Reading.timestamp.desc())
+        .order_by(Reading.timestamp.desc(), Reading.id.desc())
         .limit(1)
     )
     return db.scalar(stmt)
@@ -56,7 +56,7 @@ def get_previous_reading(
     stmt = (
         select(Reading)
         .where(Reading.city == city, Reading.timestamp < before_timestamp)
-        .order_by(Reading.timestamp.desc())
+        .order_by(Reading.timestamp.desc(), Reading.id.desc())
         .limit(1)
     )
     return db.scalar(stmt)

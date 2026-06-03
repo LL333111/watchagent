@@ -6,6 +6,35 @@ from sqlalchemy.orm import Session
 from app import repository
 from app.schemas import EventCreate, ReadingCreate
 
+READING_FIELDS = {
+    "id",
+    "city",
+    "timestamp",
+    "temperature_2m",
+    "apparent_temperature",
+    "precipitation",
+    "wind_speed_10m",
+    "weather_code",
+    "weather_category",
+    "created_at",
+}
+
+EVENT_FIELDS = {
+    "id",
+    "city",
+    "timestamp",
+    "event_type",
+    "severity",
+    "message",
+    "reason",
+    "metric",
+    "current_value",
+    "previous_value",
+    "threshold",
+    "reading_id",
+    "created_at",
+}
+
 
 def _seed_readings(db_session: Session) -> None:
     base = datetime(2026, 1, 1, 10, 0, tzinfo=timezone.utc)
@@ -115,9 +144,12 @@ def test_readings_endpoint_returns_expected_shape(client: TestClient, db_session
 
     assert response.status_code == 200
     payload = response.json()
-    assert "readings" in payload
+    assert set(payload) == {"readings"}
     assert isinstance(payload["readings"], list)
     assert len(payload["readings"]) == 3
+    assert set(payload["readings"][0]) == READING_FIELDS
+    assert payload["readings"][0]["timestamp"].endswith("+00:00")
+    assert payload["readings"][0]["created_at"].endswith("+00:00")
 
 
 def test_events_endpoint_returns_expected_shape(client: TestClient, db_session: Session) -> None:
@@ -127,9 +159,12 @@ def test_events_endpoint_returns_expected_shape(client: TestClient, db_session: 
 
     assert response.status_code == 200
     payload = response.json()
-    assert "events" in payload
+    assert set(payload) == {"events"}
     assert isinstance(payload["events"], list)
     assert len(payload["events"]) == 3
+    assert set(payload["events"][0]) == EVENT_FIELDS
+    assert payload["events"][0]["timestamp"].endswith("+00:00")
+    assert payload["events"][0]["created_at"].endswith("+00:00")
 
 
 def test_city_filter_works_for_readings_and_events(

@@ -74,6 +74,12 @@ Component map:
 - GitHub Actions
   Validates the test suite and Docker build on pushes to `main`.
 
+Operational notes:
+
+- The container runs as a non-root application user.
+- The image and compose service both expose a `/health`-based health check.
+- SQLite data persists in the mounted `./data` directory across restarts.
+
 ## Setup and Run
 
 ```bash
@@ -88,6 +94,7 @@ After startup:
 - API: [http://localhost:8000](http://localhost:8000)
 - Database file: `./data/watchagent.db`
 - Poller: enabled by default
+- Container health: `healthy` once `/health` returns `"ok"`
 
 ## Environment Variables
 
@@ -198,7 +205,7 @@ Example response:
 ### Implemented Event Families
 
 1. `temperature_swing`
-   Fires when the absolute hour-to-hour temperature change exceeds the city's
+   Fires when the absolute hour-to-hour temperature change meets or exceeds the city's
    swing threshold.
 
    Thresholds:
@@ -253,8 +260,9 @@ Example response:
 
    Trigger:
    - previous precipitation effectively dry (`<= 0.05 mm`)
-   - current precipitation is at least `0.2 mm`, or the weather regime changed
-     into rain/snow/storm
+   - current precipitation is at least `0.2 mm`, or the current weather category
+     has already shifted into `rain`, `snow`, or `storm` even if the measured
+     accumulation is still below `0.2 mm`
 
    Why this exists:
    The operational change from dry to wet matters more than continued
@@ -315,7 +323,9 @@ scoped to a concrete problem in this codebase.
 
 - `.cursor/skills/analyze_weather_data.py`
   Question-driven data analysis. It answers concrete questions from stored
-  readings and events rather than printing a generic dump.
+  readings and events rather than printing a generic dump. Run it from the
+  repository root after the service has collected data, or pass `--database-url`
+  to point at a specific SQLite file.
 
   Example commands:
 
@@ -327,7 +337,9 @@ scoped to a concrete problem in this codebase.
 
 - `.cursor/skills/replay_event_detection.py`
   Replays event logic over recent stored readings so signal sensitivity and noise
-  can be inspected against real history.
+  can be inspected against real history. Run it from the repository root after
+  the service has collected data, or pass `--database-url` to point at a
+  specific SQLite file.
 
   Example commands:
 
@@ -345,6 +357,18 @@ Why this setup is project-specific:
 - The analyst agent and question-driven skill exist because this challenge asks
   for defensible monitoring logic, which requires being able to interrogate the
   collected dataset directly.
+- The replay skill makes quiet windows explainable: if no events fire in a
+  recent slice, it returns a structured summary rather than implying that the
+  service is broken.
+
+Typical review workflow:
+
+1. Let the service collect readings into SQLite.
+2. Use `analyze_weather_data.py` to answer cross-city or single-city questions.
+3. Use `replay_event_detection.py` to inspect whether recent history was quiet
+   because conditions were stable or because the thresholds are too conservative.
+4. Use the reviewer agent to compare event logic, tests, and README reasoning
+   before changing thresholds or definitions.
 
 ## Testing
 
@@ -354,14 +378,24 @@ Run tests:
 pytest
 ```
 
+Or inside Docker:
+
+```bash
+docker build -t watchagent .
+docker run --rm watchagent pytest
+```
+
 Test coverage includes:
 
 - reading and event deduplication
 - event trigger and non-trigger cases for every event family
-- API response shape, filtering, limits, and newest-first ordering
+- event boundary cases such as threshold-equality, heat-stress entry, and
+  regime-shift transitions
+- API response shape, exact stored fields, filtering, limits, and newest-first ordering
 - poller behavior and duplicate short-circuiting
 - weather client parsing, timeout handling, and UTC timestamp normalization
 - analysis skill behavior for question-driven data interrogation
+- documented skill entrypoint execution from the repository root
 
 ## CI
 
@@ -403,3 +437,7 @@ watchagent/
   persisted event stream. That was a deliberate choice to keep the stored event
   model focused on per-city operational transitions while still supporting
   comparative reasoning during review.
+- Quiet live windows are a real possibility because the event logic is tuned to
+  prefer selective transition signals over constant reminders. When no recent
+  events fire, the analysis and replay skills now report that explicitly so the
+  output reads as "calm conditions" rather than "missing data."

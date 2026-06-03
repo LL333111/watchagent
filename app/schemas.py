@@ -1,6 +1,14 @@
-from datetime import datetime
+from datetime import datetime, timezone
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, field_serializer
+
+
+def _serialize_utc_datetime(value: datetime) -> str:
+    if value.tzinfo is None:
+        value = value.replace(tzinfo=timezone.utc)
+    else:
+        value = value.astimezone(timezone.utc)
+    return value.isoformat()
 
 
 class ReadingBase(BaseModel):
@@ -23,6 +31,10 @@ class ReadingOut(ReadingBase):
 
     id: int
     created_at: datetime
+
+    @field_serializer("timestamp", "created_at")
+    def serialize_datetimes(self, value: datetime) -> str:
+        return _serialize_utc_datetime(value)
 
 
 class ReadingsResponse(BaseModel):
@@ -52,6 +64,10 @@ class EventOut(EventBase):
 
     id: int
     created_at: datetime
+
+    @field_serializer("timestamp", "created_at")
+    def serialize_datetimes(self, value: datetime) -> str:
+        return _serialize_utc_datetime(value)
 
 
 class EventsResponse(BaseModel):

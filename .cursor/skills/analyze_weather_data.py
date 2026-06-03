@@ -11,6 +11,13 @@ from __future__ import annotations
 
 import argparse
 import json
+import sys
+from pathlib import Path
+
+# Allow direct execution from the repository root as documented in the README.
+REPO_ROOT = Path(__file__).resolve().parents[2]
+if str(REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(REPO_ROOT))
 
 from app.data_analysis import analyze_weather_question
 
