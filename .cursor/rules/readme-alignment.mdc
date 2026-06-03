@@ -1,0 +1,31 @@
+---
+description: WatchAgent README and assignment-alignment requirements
+globs:
+  - README.md
+  - app/event_detection.py
+  - app/routes.py
+  - app/schemas.py
+  - docker-compose.yml
+  - Dockerfile
+  - .cursor/**/*
+alwaysApply: true
+---
+
+# README Alignment Rules (WatchAgent)
+
+- README must stay aligned with the assignment-required sections: system
+  overview, architecture visualization, setup/run instructions, API reference,
+  test instructions, technology choices, event detection design, and Cursor
+  Setup.
+- If an event type is added, removed, renamed, or has a trigger changed, update
+  the README Event Detection Design section and the event tests in the same
+  change.
+- If Docker commands, environment variables, ports, or database paths change,
+  update setup/run instructions immediately.
+- If Cursor rules, agents, or skills change, update the Cursor Setup section so
+  a reviewer can understand why each artifact exists and how to run skills.
+- Avoid adding extra assignment-review documents or generated artifacts unless
+  the user explicitly asks for them. Keep the final submission focused on the
+  required repository files.
+- README examples should be honest: do not imply live events are guaranteed
+  during a short runtime window, because the event logic is transition-based.

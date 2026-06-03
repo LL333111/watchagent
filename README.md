@@ -444,6 +444,35 @@ scoped to a concrete problem in this codebase.
   Keeps mocks, API ordering checks, trigger/non-trigger cases, and skill testing
   from being skipped.
 
+- `.cursor/rules/api-contracts.mdc`
+  Protects the exact required HTTP contract for `/health`, `/readings`, and
+  `/events`, including response wrappers, UTC timestamp serialization, filters,
+  limits, and newest-first ordering.
+
+- `.cursor/rules/configuration-and-security.mdc`
+  Keeps setup clean-clone friendly, prevents committed secrets, preserves
+  non-root container execution, and requires typed timeout/error handling around
+  upstream weather calls.
+
+- `.cursor/rules/cursor-deliverables.mdc`
+  Treats Cursor artifacts as graded deliverables: rules must be specific,
+  agents must be scoped, and skills must run from the repository root with
+  structured output and tests.
+
+- `.cursor/rules/readme-alignment.mdc`
+  Keeps README synchronized with event definitions, API behavior, Docker setup,
+  environment variables, and Cursor artifact changes.
+
+- `.cursor/rules/city-context-and-local-time.mdc`
+  Protects city-specific reasoning: Ottawa winter surfaces, Toronto transit-risk
+  proxies, Vancouver coastal rain/wind exposure, city-local commute windows, and
+  regional comparisons that require meaningful contrast.
+
+- `.cursor/rules/data-analysis-evidence.mdc`
+  Keeps analysis skills evidence-based: answers must come from stored SQLite
+  readings/events, include concrete metrics or counts, explain sparse/quiet
+  datasets, and avoid unsupported causal claims.
+
 ### Agents
 
 - `.cursor/agents/weather-event-reviewer.md`
@@ -453,6 +482,21 @@ scoped to a concrete problem in this codebase.
 - `.cursor/agents/weather-data-analyst.md`
   A dataset-focused agent that uses the analysis and replay skills to answer
   questions about what the stored data is actually showing.
+
+- `.cursor/agents/watchagent-submission-auditor.md`
+  A final-readiness agent that checks assignment sections, Docker/runtime
+  readiness, CI/test expectations, repository cleanliness, and automatic
+  disqualifier risks.
+
+- `.cursor/agents/api-runtime-contract-verifier.md`
+  A runtime-focused agent that verifies `/health`, `/readings`, `/events`,
+  response shapes, timestamp serialization, Docker health, logs, and README curl
+  alignment.
+
+- `.cursor/agents/weather-signal-noise-calibrator.md`
+  A signal-quality agent that audits duplicate suppression, semantic overlap,
+  threshold defensibility, quiet-window explanations, and proxy honesty for
+  life-impact events.
 
 ### Skills
 
@@ -485,10 +529,12 @@ scoped to a concrete problem in this codebase.
 
 Why this setup is project-specific:
 
-- The rules are built around this repository's actual failure, dedup, and event
-  semantics.
-- The reviewer agent is specifically about weather signal quality, not generic
-  code review.
+- The rules are built around this repository's actual API contract, storage
+  invariants, event semantics, city-specific monitoring choices, Docker setup,
+  data-analysis boundaries, and graded Cursor deliverables.
+- The agents split real review responsibilities: event quality, stored-data
+  analysis, final submission readiness, API runtime contracts, and signal/noise
+  calibration.
 - The analyst agent and question-driven skill exist because this challenge asks
   for defensible monitoring logic, which requires being able to interrogate the
   collected dataset directly.

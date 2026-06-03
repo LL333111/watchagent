@@ -1,0 +1,30 @@
+---
+description: WatchAgent city-specific climate context and local-time rules
+globs:
+  - app/cities.py
+  - app/event_detection.py
+  - tests/test_event_detection.py
+  - README.md
+alwaysApply: true
+---
+
+# City Context and Local-Time Rules (WatchAgent)
+
+- Treat Ottawa, Toronto, and Vancouver as distinct monitoring contexts, not
+  interchangeable labels.
+- City-specific thresholds or events must have a clear project reason in README
+  and at least one focused event-detection test.
+- Keep temperature swing thresholds in `app/cities.py`; do not scatter duplicate
+  city threshold constants through event logic.
+- Time-window events must evaluate city-local time, not raw UTC hour, unless the
+  README explicitly justifies a UTC-based interpretation.
+- Ottawa-specific events should focus on winter surface conditions, freeze/thaw
+  impacts, roads, sidewalks, pathways, or near-freezing wet conditions.
+- Toronto-specific events should avoid claiming live TTC delay data. Phrase them
+  as weather-risk proxies unless the project later integrates a real transit
+  data source.
+- Vancouver-specific events should preserve the coastal/rain/wind framing and
+  avoid copying Ottawa or Toronto assumptions into Vancouver logic.
+- Regional events must require readings from all monitored cities and a clear
+  enough contrast to avoid declaring a winner during essentially similar
+  conditions.

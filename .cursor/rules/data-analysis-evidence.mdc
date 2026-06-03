@@ -1,0 +1,28 @@
+---
+description: WatchAgent stored-data analysis and evidence boundaries
+globs:
+  - app/data_analysis.py
+  - .cursor/skills/analyze_weather_data.py
+  - .cursor/skills/replay_event_detection.py
+  - tests/test_data_analysis.py
+  - tests/test_skill_entrypoints.py
+  - README.md
+alwaysApply: true
+---
+
+# Data Analysis Evidence Rules (WatchAgent)
+
+- Analysis skills must answer from stored SQLite readings and events, not from
+  assumptions, current live weather, or external services.
+- Every successful answer should include evidence: timestamps, city rankings,
+  metric values, event counts, deltas, or replayed event types as appropriate.
+- If the dataset is empty, sparse, or has readings but no events, explain that
+  state directly instead of implying a failure.
+- Do not infer causal claims from weather alone. For example, do not say weather
+  caused a TTC delay unless a real transit data source is added.
+- Trend answers must report the sample window and delta so reviewers can see
+  whether the conclusion is weak or meaningful.
+- Replay output must preserve chronological order per city so event transitions
+  are evaluated against the correct previous reading.
+- When adding a new supported question intent, add tests that seed SQLite data
+  and assert both the answer intent and the evidence structure.

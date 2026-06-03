@@ -10,7 +10,12 @@ alwaysApply: true
 
 # Polling and Storage Rules (WatchAgent)
 
-- When handling weather fetch failures in the poller, log the **city name** and the **exception detail** in the same log entry so operators can identify the failing upstream call quickly.
+- When handling expected weather fetch failures in the poller, log at
+  `WARNING` level with the **city name** and the **exception detail** in the
+  same log entry. Do not re-raise the error from the polling cycle.
+- Unexpected per-city polling errors should use `logger.exception(...)` with
+  the city name so the traceback is captured, but they still must not stop the
+  remaining cities in the cycle.
 - A failure for one city (Ottawa, Toronto, or Vancouver) must **not** stop polling the remaining cities in the same cycle.
 - Normalize upstream timestamps to UTC before persistence so cross-city ordering and analysis stay valid.
 - `readings` must remain naturally deduplicated by `city + timestamp` (see unique constraint and repository insertion behavior).

@@ -1,0 +1,29 @@
+---
+description: WatchAgent Cursor rules, agents, and skills deliverable quality
+globs:
+  - .cursor/**/*.md
+  - .cursor/**/*.mdc
+  - .cursor/skills/**/*.py
+  - tests/test_skill_entrypoints.py
+  - tests/test_data_analysis.py
+  - README.md
+alwaysApply: true
+---
+
+# Cursor Deliverables Rules (WatchAgent)
+
+- Cursor artifacts are graded deliverables, not decoration. Rules, agents, and
+  skills must reference real WatchAgent files, invariants, or workflows.
+- Keep rules small and scoped. Prefer one concrete project invariant per rule
+  file over a generic "best practices" dump.
+- Agent prompts must include a narrow mission, boundaries, files to inspect,
+  and output expectations. Avoid broad roles such as "senior engineer" unless
+  they are tied to WatchAgent context.
+- Skills must be runnable from the repository root and support `--database-url`
+  when they need stored data.
+- Skills should produce structured JSON output so results can be inspected by a
+  human, a reviewer agent, or a test.
+- Empty data and quiet event windows must be explained as valid states, not
+  treated as crashes.
+- Any new or changed skill must have a focused test that exercises its
+  documented entrypoint or core behavior.

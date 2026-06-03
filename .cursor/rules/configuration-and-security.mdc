@@ -1,0 +1,27 @@
+---
+description: WatchAgent configuration, secrets, and runtime safety rules
+globs:
+  - app/config.py
+  - app/main.py
+  - app/weather_client.py
+  - Dockerfile
+  - docker-compose.yml
+  - .env.example
+  - README.md
+alwaysApply: true
+---
+
+# Configuration and Security Rules (WatchAgent)
+
+- Do not commit real API keys, credentials, tokens, private URLs, or personal
+  secrets. This project should run with the public Open-Meteo API and local
+  SQLite by default.
+- New runtime settings must be read through `app/config.py`, documented in
+  `.env.example`, and explained in README when they affect setup or behavior.
+- Keep Docker startup clean-clone friendly: `cp .env.example .env` followed by
+  `docker compose up --build` should remain sufficient.
+- Keep the container non-root unless there is a documented reason to change it.
+- Do not log secrets or full untrusted upstream payloads. Log city, status,
+  timeout, and short diagnostic details instead.
+- Network calls must keep explicit timeouts and raise typed weather-client
+  errors that the poller can log without stopping other cities.

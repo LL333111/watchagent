@@ -1,0 +1,27 @@
+---
+description: WatchAgent HTTP API contract and response-shape invariants
+globs:
+  - app/routes.py
+  - app/schemas.py
+  - tests/test_api.py
+  - README.md
+alwaysApply: true
+---
+
+# API Contract Rules (WatchAgent)
+
+- Preserve the required endpoint set: `GET /health`, `GET /readings`, and
+  `GET /events`. Do not add auth, pagination styles, or alternate route names
+  that change the assignment contract.
+- `/health` must return exactly the operational shape:
+  `status`, `readings_stored`, and `events_stored`.
+- `/readings` must return a top-level `readings` array. Each reading should
+  include all stored reading fields exposed by `ReadingOut`.
+- `/events` must return a top-level `events` array. Each event should include
+  all stored event fields exposed by `EventOut`.
+- `city` remains an optional filter for readings/events. `limit` remains
+  optional, defaults to `50`, and should keep most-recent-first ordering.
+- Serialized timestamps must stay timezone-aware UTC strings with an explicit
+  offset, not naive datetimes.
+- When changing a response model or route query behavior, update
+  `tests/test_api.py` and the README API examples in the same change.
