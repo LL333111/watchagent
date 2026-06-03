@@ -504,27 +504,43 @@ scoped to a concrete problem in this codebase.
   Question-driven data analysis. It answers concrete questions from stored
   readings and events rather than printing a generic dump. Run it from the
   repository root after the service has collected data, or pass `--database-url`
-  to point at a specific SQLite file.
+  to point at a specific SQLite file. Output is structured JSON with an
+  `answer` and `evidence` section so humans, agents, and tests can verify what
+  data supported the conclusion.
 
   Example commands:
 
   ```bash
   python .cursor/skills/analyze_weather_data.py --question "Which city is warmest right now?"
+  python .cursor/skills/analyze_weather_data.py --question "Which city has the best outdoor window right now?"
   python .cursor/skills/analyze_weather_data.py --question "Has Vancouver been getting windier?" --limit 12
   python .cursor/skills/analyze_weather_data.py --question "Which city has generated the most events?"
+  ```
+
+  Docker example after `docker compose up --build`:
+
+  ```bash
+  docker compose exec watchagent python .cursor/skills/analyze_weather_data.py --question "Which city has the best outdoor window right now?"
   ```
 
 - `.cursor/skills/replay_event_detection.py`
   Replays event logic over recent stored readings so signal sensitivity and noise
   can be inspected against real history. Run it from the repository root after
   the service has collected data, or pass `--database-url` to point at a
-  specific SQLite file.
+  specific SQLite file. Output is structured JSON so quiet windows can be
+  distinguished from broken event detection.
 
   Example commands:
 
   ```bash
   python .cursor/skills/replay_event_detection.py --city Vancouver --limit 30
   python .cursor/skills/replay_event_detection.py --limit 60
+  ```
+
+  Docker example after `docker compose up --build`:
+
+  ```bash
+  docker compose exec watchagent python .cursor/skills/replay_event_detection.py --limit 60
   ```
 
 Why this setup is project-specific:

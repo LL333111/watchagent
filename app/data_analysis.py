@@ -77,6 +77,13 @@ def _analyze_with_connection(
             limit=limit,
             database_path=database_path,
         )
+    if intent == "outdoor_window":
+        return _answer_outdoor_window(
+            conn,
+            question,
+            limit=limit,
+            database_path=database_path,
+        )
     if intent == "city_trend":
         return _answer_city_trend(
             conn,
@@ -109,6 +116,19 @@ def _analyze_with_connection(
 
 def _classify_question(question: str, city: str | None) -> str:
     normalized = question.lower()
+
+    if any(
+        token in normalized
+        for token in (
+            "best outdoor",
+            "outdoor window",
+            "go outside",
+            "walk outside",
+            "good for a walk",
+            "errands",
+        )
+    ):
+        return "outdoor_window"
 
     if any(
         token in normalized
@@ -175,6 +195,56 @@ def _metric_from_question(question: str) -> tuple[str, str, bool]:
     if any(token in normalized for token in ("coldest", "coolest", "lowest temperature")):
         return "temperature_2m", "temperature", False
     return "temperature_2m", "temperature", True
+
+
+def _outdoor_window_score(reading: dict[str, Any]) -> float:
+    category = str(reading["weather_category"])
+    precipitation = float(reading["precipitation"])
+    wind = float(reading["wind_speed_10m"])
+    apparent = float(reading["apparent_temperature"])
+
+    score = 0.0
+    if category in {"clear", "cloudy"}:
+        score += 3.0
+    elif category == "fog":
+        score -= 2.0
+    elif category == "rain":
+        score -= 3.0
+    elif category == "snow":
+        score -= 4.0
+    elif category == "storm":
+        score -= 6.0
+
+    if precipitation <= 0.05:
+        score += 2.0
+    else:
+        score -= min(4.0, precipitation * 2.0)
+
+    if wind < 15.0:
+        score += 2.0
+    elif wind < 25.0:
+        score += 1.0
+    else:
+        score -= 2.0
+
+    if 10.0 <= apparent <= 25.0:
+        score += 2.0
+    elif 5.0 <= apparent < 10.0 or 25.0 < apparent <= 27.0:
+        score += 1.0
+    else:
+        score -= 2.0
+
+    return round(score, 2)
+
+
+def _is_usable_outdoor_window(reading: dict[str, Any]) -> bool:
+    apparent = float(reading["apparent_temperature"])
+    return (
+        str(reading["weather_category"]) in {"clear", "cloudy"}
+        and float(reading["precipitation"]) <= 0.05
+        and float(reading["wind_speed_10m"]) < 25.0
+        and 5.0 <= apparent <= 27.0
+    )
 
 
 def _latest_readings_by_city(conn: sqlite3.Connection) -> dict[str, dict[str, Any]]:
@@ -339,6 +409,76 @@ def _answer_compare_latest(
                     "city": row["city"],
                     "value": float(row[metric_key]),
                     "timestamp": row["timestamp"],
+                }
+                for row in ranked
+            ],
+        },
+    )
+
+
+def _answer_outdoor_window(
+    conn: sqlite3.Connection,
+    question: str,
+    *,
+    limit: int,
+    database_path: str,
+) -> dict[str, Any]:
+    latest_by_city = _latest_readings_by_city(conn)
+    if not latest_by_city:
+        return _empty_dataset_response(
+            database_path=database_path,
+            question=question,
+            intent="outdoor_window",
+            city=None,
+            limit=limit,
+        )
+
+    ranked = sorted(
+        latest_by_city.values(),
+        key=_outdoor_window_score,
+        reverse=True,
+    )
+    best = ranked[0]
+    best_score = _outdoor_window_score(best)
+    if _is_usable_outdoor_window(best):
+        answer = (
+            f"{best['city']} currently has the best outdoor window: "
+            f"{best['weather_category']}, feels like "
+            f"{float(best['apparent_temperature']):.1f}C, "
+            f"{float(best['wind_speed_10m']):.1f} km/h wind, and "
+            f"{float(best['precipitation']):.1f} mm precipitation."
+        )
+    else:
+        answer = (
+            f"No monitored city currently has a clean outdoor window. "
+            f"{best['city']} is the least-friction option with an outdoor score "
+            f"of {best_score:.1f}."
+        )
+
+    return _base_response(
+        database_path=database_path,
+        question=question,
+        intent="outdoor_window",
+        city=None,
+        limit=limit,
+        answer=answer,
+        evidence={
+            "criteria": {
+                "usable_categories": ["clear", "cloudy"],
+                "max_precipitation_mm": 0.05,
+                "max_wind_kmh": 25.0,
+                "apparent_temperature_range_c": [5.0, 27.0],
+            },
+            "ranking": [
+                {
+                    "city": row["city"],
+                    "score": _outdoor_window_score(row),
+                    "usable_outdoor_window": _is_usable_outdoor_window(row),
+                    "timestamp": row["timestamp"],
+                    "weather_category": row["weather_category"],
+                    "apparent_temperature": float(row["apparent_temperature"]),
+                    "precipitation": float(row["precipitation"]),
+                    "wind_speed_10m": float(row["wind_speed_10m"]),
                 }
                 for row in ranked
             ],
@@ -608,6 +748,7 @@ def _unsupported_response(
         "error": detail,
         "supported_examples": [
             "Which city is warmest right now?",
+            "Which city has the best outdoor window right now?",
             "Has Vancouver been getting windier?",
             "Give me a summary for Ottawa.",
             "Which city has generated the most events?",

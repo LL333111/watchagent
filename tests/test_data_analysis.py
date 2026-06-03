@@ -207,6 +207,22 @@ def test_analysis_skill_answers_event_pressure_question(tmp_path: Path) -> None:
     assert result["evidence"]["event_counts_by_city"]["Toronto"] == 2
 
 
+def test_analysis_skill_answers_best_outdoor_window_question(tmp_path: Path) -> None:
+    database_url = _seed_database(tmp_path / "analysis.db")
+
+    result = analyze_weather_question(
+        database_url,
+        "Which city has the best outdoor window right now?",
+    )
+
+    assert result["ok"] is True
+    assert result["intent"] == "outdoor_window"
+    assert "Toronto" in result["answer"]
+    assert result["evidence"]["ranking"][0]["city"] == "Toronto"
+    assert result["evidence"]["ranking"][0]["usable_outdoor_window"] is True
+    assert result["evidence"]["criteria"]["max_wind_kmh"] == 25.0
+
+
 def test_analysis_skill_understands_warmer_wording(tmp_path: Path) -> None:
     database_url = _seed_database(tmp_path / "analysis.db")
 
