@@ -2,6 +2,7 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 import subprocess
 import sys
+import json
 
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
@@ -146,3 +147,40 @@ def test_replay_event_skill_runs_from_documented_entrypoint(tmp_path: Path) -> N
     assert result.returncode == 0, result.stderr
     assert '"ok": true' in result.stdout.lower()
     assert '"replay"' in result.stdout.lower()
+
+
+def _run_skill(script: str) -> dict[str, object]:
+    result = subprocess.run(
+        [sys.executable, script],
+        capture_output=True,
+        text=True,
+        check=False,
+        cwd=Path(__file__).resolve().parents[1],
+    )
+
+    assert result.returncode == 0, result.stderr
+    return json.loads(result.stdout)
+
+
+def test_event_design_audit_skill_runs_from_documented_entrypoint() -> None:
+    output = _run_skill(".cursor/skills/audit_event_design.py")
+
+    assert output["ok"] is True
+    assert output["code_event_count"] >= 10
+    assert output["missing_from_readme"] == []
+
+
+def test_api_contract_audit_skill_runs_from_documented_entrypoint() -> None:
+    output = _run_skill(".cursor/skills/audit_api_contract.py")
+
+    assert output["ok"] is True
+    assert output["missing_endpoints"] == []
+    assert output["missing_fields"] == []
+
+
+def test_submission_readiness_audit_skill_runs_from_documented_entrypoint() -> None:
+    output = _run_skill(".cursor/skills/audit_submission_readiness.py")
+
+    assert output["ok"] is True
+    assert output["evidence"]["cursor_skill_count"] >= 5
+    assert output["missing_readme_sections"] == []

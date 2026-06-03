@@ -135,6 +135,12 @@ Example response:
 curl -s "http://localhost:8000/readings?city=Ottawa&limit=50"
 ```
 
+Query parameters:
+
+- `city`: optional filter
+- `limit`: optional, default `50`
+- ordering: most recent first
+
 Example response:
 
 ```json
@@ -161,6 +167,12 @@ Example response:
 ```bash
 curl -s "http://localhost:8000/events?city=Ottawa&limit=50"
 ```
+
+Query parameters:
+
+- `city`: optional filter
+- `limit`: optional, default `50`
+- ordering: most recent first
 
 Example response:
 
@@ -543,6 +555,42 @@ scoped to a concrete problem in this codebase.
   docker compose exec watchagent python .cursor/skills/replay_event_detection.py --limit 60
   ```
 
+- `.cursor/skills/audit_event_design.py`
+  Static event-design audit. It compares event types implemented in
+  `app/event_detection.py` with README documentation and
+  `tests/test_event_detection.py` evidence, then reports missing documentation
+  or trigger tests as structured JSON.
+
+  Example command:
+
+  ```bash
+  python .cursor/skills/audit_event_design.py
+  ```
+
+- `.cursor/skills/audit_api_contract.py`
+  Static API-contract audit. It checks that `/health`, `/readings`, and
+  `/events` are represented consistently across routes, schemas, tests, and
+  README examples, including field names, filters, limits, UTC timestamp
+  behavior, and newest-first expectations.
+
+  Example command:
+
+  ```bash
+  python .cursor/skills/audit_api_contract.py
+  ```
+
+- `.cursor/skills/audit_submission_readiness.py`
+  Static final-readiness audit. It checks required files, README sections,
+  Cursor artifact counts, Docker health/non-root signals, CI workflow presence,
+  obvious secret patterns, and generated-cache artifacts. It complements, but
+  does not replace, `pytest` and Docker Compose runtime checks.
+
+  Example command:
+
+  ```bash
+  python .cursor/skills/audit_submission_readiness.py
+  ```
+
 Why this setup is project-specific:
 
 - The rules are built around this repository's actual API contract, storage
@@ -554,6 +602,8 @@ Why this setup is project-specific:
 - The analyst agent and question-driven skill exist because this challenge asks
   for defensible monitoring logic, which requires being able to interrogate the
   collected dataset directly.
+- The audit skills give the submission, API runtime, and signal/noise agents
+  repeatable evidence instead of relying only on ad hoc manual reading.
 - The replay skill makes quiet windows explainable: if no events fire in a
   recent slice, it returns a structured summary rather than implying that the
   service is broken.
