@@ -7,7 +7,7 @@ import httpx
 from app.cities import CITIES, CityConfig
 from app.config import Settings, get_settings
 from app.db import SessionLocal
-from app.event_detection import detect_city_events
+from app.event_detection import detect_city_events, detect_regional_events
 from app.models import Reading
 from app import repository
 from app.schemas import EventCreate, ReadingCreate
@@ -76,22 +76,25 @@ class WeatherPoller:
 
     async def _poll_all_cities(self, client: httpx.AsyncClient) -> None:
         weather_client = WeatherClient(client, self._settings)
+        inserted_any = False
         for city_name in CITY_ORDER:
             city = CITIES.get(city_name)
             if city is None:
                 continue
             try:
-                await self._poll_city(weather_client, city)
+                inserted_any = await self._poll_city(weather_client, city) or inserted_any
             except WeatherClientError as exc:
                 logger.warning("Weather fetch failed for %s: %s", city_name, exc)
             except Exception:
                 logger.exception("Unexpected error polling %s", city_name)
+        if inserted_any:
+            self._detect_and_store_regional_events()
 
     async def _poll_city(
         self,
         weather_client: WeatherClient,
         city: CityConfig,
-    ) -> None:
+    ) -> bool:
         reading_data = await weather_client.fetch_current_weather(city)
         db = SessionLocal()
         try:
@@ -99,7 +102,7 @@ class WeatherPoller:
             reading, inserted = repository.insert_reading_if_new(db, reading_create)
             if not inserted:
                 logger.debug("Duplicate reading skipped for %s", city.name)
-                return
+                return False
 
             logger.info("Stored new reading for %s at %s", city.name, reading.timestamp)
             previous = repository.get_previous_reading(
@@ -114,7 +117,7 @@ class WeatherPoller:
                 previous_dict,
             )
             if not event_dicts:
-                return
+                return True
 
             event_creates = [
                 EventCreate(**{**event_dict, "reading_id": reading.id})
@@ -128,6 +131,32 @@ class WeatherPoller:
                     new_count,
                     city.name,
                 )
+            return True
+        finally:
+            db.close()
+
+    def _detect_and_store_regional_events(self) -> None:
+        db = SessionLocal()
+        try:
+            readings = repository.list_latest_readings_by_city(db, CITY_ORDER)
+            reading_by_city = {reading.city: reading for reading in readings}
+            event_dicts = detect_regional_events([_reading_to_dict(reading) for reading in readings])
+            if not event_dicts:
+                return
+
+            event_creates = [
+                EventCreate(
+                    **{
+                        **event_dict,
+                        "reading_id": reading_by_city[event_dict["city"]].id,
+                    },
+                )
+                for event_dict in event_dicts
+            ]
+            results = repository.insert_events_if_new(db, event_creates)
+            new_count = sum(1 for _, was_inserted in results if was_inserted)
+            if new_count:
+                logger.info("Stored %s regional event(s)", new_count)
         finally:
             db.close()
 

@@ -48,6 +48,18 @@ def get_latest_reading(db: Session, city: str) -> Reading | None:
     return db.scalar(stmt)
 
 
+def list_latest_readings_by_city(
+    db: Session,
+    city_names: tuple[str, ...],
+) -> list[Reading]:
+    readings: list[Reading] = []
+    for city in city_names:
+        latest = get_latest_reading(db, city)
+        if latest is not None:
+            readings.append(latest)
+    return readings
+
+
 def get_previous_reading(
     db: Session,
     city: str,

@@ -7,11 +7,12 @@ from unittest.mock import MagicMock
 import httpx
 import pytest
 from sqlalchemy import create_engine
+from sqlalchemy import select
 from sqlalchemy.orm import sessionmaker
 
 from app import repository
 from app.config import Settings
-from app.models import Base
+from app.models import Base, Event
 from app.poller import WeatherPoller
 from app.weather_client import WeatherClientError
 
@@ -188,3 +189,71 @@ async def test_poll_once_deduplicates_same_city_timestamp_and_skips_repeat_detec
 
     # Event detection should only run for the first (inserted) reading.
     detect_mock.assert_called_once()
+
+
+@pytest.mark.asyncio
+async def test_poll_once_stores_regional_weather_advantage(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path,
+) -> None:
+    db_path = tmp_path / "poller-regional.db"
+    engine = create_engine(
+        f"sqlite:///{db_path}",
+        connect_args={"check_same_thread": False},
+    )
+    testing_session_local = sessionmaker(
+        autocommit=False,
+        autoflush=False,
+        bind=engine,
+    )
+    Base.metadata.create_all(bind=engine)
+
+    readings_by_city = {
+        "Ottawa": {
+            **_reading("Ottawa"),
+            "temperature_2m": 18.0,
+            "apparent_temperature": 18.0,
+            "precipitation": 0.0,
+            "wind_speed_10m": 8.0,
+            "weather_category": "clear",
+        },
+        "Toronto": {
+            **_reading("Toronto"),
+            "temperature_2m": 12.0,
+            "apparent_temperature": 12.0,
+            "precipitation": 0.8,
+            "wind_speed_10m": 18.0,
+            "weather_category": "rain",
+        },
+        "Vancouver": {
+            **_reading("Vancouver"),
+            "temperature_2m": 4.0,
+            "apparent_temperature": 4.0,
+            "precipitation": 0.5,
+            "wind_speed_10m": 36.0,
+            "weather_category": "storm",
+        },
+    }
+
+    class FakeWeatherClient:
+        def __init__(self, client: httpx.AsyncClient, settings: Settings) -> None:
+            self.client = client
+            self.settings = settings
+
+        async def fetch_current_weather(self, city: object) -> dict[str, object]:
+            return readings_by_city[city.name]
+
+    monkeypatch.setattr("app.poller.SessionLocal", testing_session_local)
+    monkeypatch.setattr("app.poller.WeatherClient", FakeWeatherClient)
+
+    poller = WeatherPoller(settings=Settings(enable_poller=False))
+    try:
+        await poller.poll_once()
+
+        with testing_session_local() as session:
+            event_types = [event.event_type for event in session.scalars(select(Event)).all()]
+    finally:
+        Base.metadata.drop_all(bind=engine)
+        engine.dispose()
+
+    assert "regional_weather_advantage" in event_types

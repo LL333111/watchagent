@@ -196,6 +196,9 @@ Example response:
   operator that bad weather is still bad.
 - First readings are not alerts.
   A single bootstrap reading lacks context. The system waits for transitions.
+  Regional comparison is the one exception: it can fire after all monitored
+  cities have current readings, because the context comes from cross-city
+  contrast rather than a single city's previous reading.
 - City context matters.
   A 4C swing is more notable in Vancouver than in Ottawa, so temperature swing
   thresholds are city-specific.
@@ -203,6 +206,14 @@ Example response:
   `message` says what happened. `reason` says why the system judged it notable.
 
 ### Implemented Event Families
+
+The event stream has two layers:
+
+- Weather signal events
+  Capture changes in the raw weather picture.
+- Life-impact events
+  Translate the same weather readings into common monitoring questions around
+  safety, commuting, exposure, and cross-city planning.
 
 1. `temperature_swing`
    Fires when the absolute hour-to-hour temperature change meets or exceeds the city's
@@ -242,7 +253,9 @@ Example response:
    Why this exists:
    Crossing freezing is operationally important because road, walkway, and
    surface conditions can change quickly even if the absolute temperature change
-   is not huge.
+   is not huge. This is a general temperature-regime event; Ottawa-specific
+   surface ice risk is suppressed when this clearer crossing event already
+   explains the change.
 
 4. `wind_spike`
    Fires when wind is both strong and abruptly stronger.
@@ -278,6 +291,128 @@ Example response:
 
    Why this exists:
    Operators care more about regime changes than churn between nearby WMO codes.
+
+7. `parked_vehicle_heat_risk`
+   Fires when warm or hot conditions newly enter a range where parked vehicles
+   can become risky for children, pets, or vulnerable passengers.
+
+   Trigger:
+   - apparent temperature reaches `>= 30C`, or
+   - air temperature reaches `>= 26C` under clear/cloudy conditions
+   - the previous reading was not already in this risk state
+
+   Why this exists:
+   A weather monitor can surface practical safety implications without claiming
+   to measure a real car interior. This is a conservative risk proxy based only
+   on observed outdoor conditions.
+
+8. `skin_exposure_stress`
+   Fires when cold apparent temperature and wind combine into a new exposure
+   stress window.
+
+   Trigger:
+   - apparent temperature is `<= 0C`
+   - wind speed is `>= 20 km/h`
+   - the previous reading was not already in this exposure state
+
+   Why this exists:
+   Cold wind exposure is a practical quality-of-life signal. It matters for
+   outdoor errands, commuting, and presentation days where arriving windburned
+   or dried out is more than a numeric weather detail.
+
+9. `toronto_transit_weather_risk`
+   Fires only for Toronto when weather newly enters a state likely to create
+   surface transit friction.
+
+   Trigger:
+   - precipitation starts or reaches `>= 0.2 mm`
+   - weather category enters rain/snow/storm
+   - or wind reaches `>= 35 km/h`
+
+   Why this exists:
+   Toronto's daily monitoring value is not just "is it raining?" but "will this
+   make surface transit more fragile?" The event is named as a weather-risk
+   proxy, not a claim that the TTC is actually delayed.
+
+10. `ottawa_surface_ice_risk`
+    Fires only for Ottawa when near-freezing wet conditions newly appear.
+
+    Trigger:
+    - air temperature is `<= 1.0C`
+    - precipitation is present, or category is rain/snow/storm
+    - the previous reading was not already in this wet near-freezing state
+    - the same reading is not already explained by a clear
+      `freeze_thaw_transition`
+
+    Why this exists:
+    Ottawa's winter operating picture is strongly tied to roads, sidewalks,
+    pathways, and wet near-freezing surface conditions. It catches local
+    slipperiness cases that may not involve a clean `>= 1.0C` to `<= -1.0C`
+    crossing.
+
+11. `vancouver_coastal_rain_wind_exposure`
+    Fires only for Vancouver when rain/snow/storm combines with elevated wind.
+
+    Trigger:
+    - weather category is rain/snow/storm
+    - wind speed is `>= 25 km/h`
+    - the previous reading was not already in this coastal exposure state
+
+    Why this exists:
+    Vancouver has exposed coastal routes and outdoor spaces where rain plus
+    wind is more operationally meaningful than rain alone.
+
+12. `regional_weather_advantage`
+    Fires after a polling cycle when one city has a clearly easier weather
+    window than the others.
+
+    Trigger:
+    - one city is clear/cloudy, dry, and below elevated-wind levels
+    - at least one other city has notable friction such as rain, snow, storm,
+      fog, strong wind, or apparent-temperature stress
+    - the best city leads the next-best city by at least `4.0` points on the
+      internal regional weather score
+    - the score rewards dry, moderate, low-wind conditions and penalizes
+      precipitation, storms, fog, high wind, and apparent-temperature stress
+
+    Why this exists:
+    People often care about weather across cities because family or friends may
+    live somewhere else, and a quick contrast can help explain what their day
+    might feel like. This event turns cross-city monitoring into a useful
+    "where is the easy weather window right now?" signal for travel, plans, or
+    simply checking in on people in another city.
+
+13. `low_visibility_commute_window`
+    Fires when wet, foggy, snowy, or stormy weather newly overlaps the local
+    afternoon commute window.
+
+    Trigger:
+    - local city time is from `15:00` through before `18:00`
+    - weather category is fog/rain/snow/storm, or precipitation is at least
+      `0.2 mm`
+    - the previous reading was not already in a low-visibility local commute
+      state
+
+    Why this exists:
+    Bad visibility matters more when people are likely to be walking, cycling,
+    driving, or taking surface transit home. The event uses city-local time, so
+    Vancouver's commute window is evaluated in Pacific time while Ottawa and
+    Toronto are evaluated in Eastern time.
+
+14. `outdoor_recovery_window`
+    Fires when a city moves from poor weather into a dry, moderate, low-wind
+    window.
+
+    Trigger:
+    - previous reading had weather friction: fog/rain/snow/storm,
+      precipitation, strong wind, or apparent-temperature stress
+    - current reading is clear/cloudy, effectively dry, below `25 km/h` wind,
+      and apparent temperature is between `5C` and `27C`
+
+    Why this exists:
+    A useful monitor should not only warn when conditions get worse. It should
+    also notice when errands, walks, outdoor plans, or a quick break outside
+    become reasonable again.
 
 ## Deduplication and Storage Rules
 
@@ -391,6 +526,8 @@ Test coverage includes:
 - event trigger and non-trigger cases for every event family
 - event boundary cases such as threshold-equality, heat-stress entry, and
   regime-shift transitions
+- city-local commute timing, outdoor recovery, and duplicate suppression between
+  general freeze/thaw and Ottawa-specific surface ice events
 - API response shape, exact stored fields, filtering, limits, and newest-first ordering
 - poller behavior and duplicate short-circuiting
 - weather client parsing, timeout handling, and UTC timestamp normalization
@@ -433,10 +570,9 @@ watchagent/
 - Current event logic is intentionally heuristic and explainable. The next step
   would be learning seasonal baselines from accumulated history rather than using
   only fixed thresholds.
-- Cross-city comparisons currently live in the analysis skill instead of the
-  persisted event stream. That was a deliberate choice to keep the stored event
-  model focused on per-city operational transitions while still supporting
-  comparative reasoning during review.
+- Cross-city comparisons now exist in both places: `regional_weather_advantage`
+  stores the strongest live contrast as an event, while the analysis skill can
+  still answer broader comparative questions over the full dataset.
 - Quiet live windows are a real possibility because the event logic is tuned to
   prefer selective transition signals over constant reminders. When no recent
   events fire, the analysis and replay skills now report that explicitly so the
